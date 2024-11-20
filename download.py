@@ -12,15 +12,21 @@ def main():
     if not hasattr(connection, "system_port"):
         logging.error("Connection failed")
         return
+    
+    with open("basic.bin", "rb") as file:
+        program_data = file.read()
 
-    commands.upload_file(
+    commands.upload_program(
         connection,
-        "slot4.ini",
-        "ini",
-        "[program]\ndescription = A test program.\nicon = USER029x.bmp\niconalt = \nslot = 4\nname = test\n[project]\nide = vexide".encode(),
-        0x3800000,
-        None,
-        FileExitAction.DO_NOTHING,
+        "quick",
+        "A basic vexide program",
+        "USER029x.bmp",
+        "vexide",
+        4,
+        True,
+        program_data,
+        True,
+        FileExitAction.SHOW_RUN_SCREEN
     )
 
 
