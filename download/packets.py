@@ -94,7 +94,7 @@ class LinkFilePacket(Cdc2CommandPacket):
         super().__init__()
         self.payload = bytearray()
         self.payload.extend([vendor, option])
-        self.paload.extend(required_file.encode())
+        self.payload.extend(required_file.encode())
 
 
 class WriteFilePacket(Cdc2CommandPacket):
