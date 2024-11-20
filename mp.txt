@@ -1,0 +1,7 @@
+double maxVelAng = constraints.maxAngularVel / curvature;
+double maxVelKin = 2 * constraints.maxVel / (constraints.trackwidth * curvature + 2);
+double maxLinearVel = std::min(maxVelAng, maxVelKin);
+double maxAccelAng = constraints.maxAngularAccel / curvature;
+double maxAccelKin = 2 * constraints.maxAccel / (constraints.trackwidth * curvature + 2);
+double maxAccel = std::min(maxAccelAng, maxAccelKin);
+vel = std::min(maxLinearVel, std::sqrt(vel * vel + 2 *  maxAccel * deltaDistance));

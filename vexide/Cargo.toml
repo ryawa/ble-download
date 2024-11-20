@@ -1,0 +1,10 @@
+[package]
+name = "vexide"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4.22"
+simplelog = "0.12.2"
+tokio = "1.41.1"
+vex-v5-serial = "0.2.2"
