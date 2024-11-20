@@ -4,6 +4,8 @@ from download import varint
 
 from . import packets, utils, vex
 
+logger = logging.getLogger(__name__)
+
 
 def upload_program(connection, **kwargs):
     pass
@@ -49,9 +51,8 @@ def upload_file(
     is_wide = varint.is_wide(int.from_bytes(transfer_response[3:4]))
     start_idx = 6 + is_wide
     window_size = int.from_bytes(transfer_response[start_idx : start_idx + 2])
-    logging.info(f"Window size: {window_size}")
+    logger.info(f"Window size: {window_size}")
     # TODO: bluetooth is a lot more complicated
-    logging.debug(f"transfer response: {transfer_response}")
     max_chunk_size = min(window_size, 4096)
     offset = 0
     for i in range(0, len(data), max_chunk_size):
@@ -59,4 +60,8 @@ def upload_file(
         if len(chunk) < max_chunk_size and len(chunk) % 4 != 0:
             chunk = bytearray(chunk)
             chunk.extend([0] * (4 - len(chunk) % 4))
-        logging.info(f"Sending chunk of size {len(chunk)}")
+        logger.info(f"Sending chunk of size {len(chunk)}")
+        connection.packet_handshake(packets.WriteFilePacket(load_addr + i, chunk))
+        # TODO: ble don't wait
+    connection.packet_handshake(packets.ExitFileTransferPacket(after_upload))
+    logger.info(f"Successfully uploaded file {filename}")

@@ -1,4 +1,4 @@
-import logging
+import struct
 
 from . import utils, varint
 
@@ -18,15 +18,12 @@ class Cdc2CommandPacket:
     def encode(self):
         encoded = bytearray()
         encoded.extend(self.header)
-        logging.debug(f"packet header: {encoded}")
         encoded.extend([self.ID])
         encoded.extend([self.EXT_ID])
         payload_size = varint.to_bytes(len(self.payload))
-        logging.debug(f"payload size: {payload_size}, {len(self.payload)}")
         encoded.extend(payload_size)
         encoded.extend(self.payload)
         encoded.extend(utils.to_be_bytes(self.crc.checksum(encoded)))
-        logging.debug(f"sending packet: {encoded.hex(" ")}")
         return encoded
 
 
@@ -70,19 +67,11 @@ class InitFileTransferPacket(Cdc2CommandPacket):
                 options,
             ]
         )
-        logging.debug(f"HERE: {self.payload}")
-        # self.payload.extend(utils.to_le_bytes(write_file_size))
         write_file_size += 1
         self.payload.extend(write_file_size.to_bytes(4, byteorder="little"))
-        logging.debug(f"write size: {write_file_size.to_bytes(4,byteorder="little")}")
-        logging.debug(f"bruh size: {utils.to_le_bytes(write_file_size)}")
-        # self.payload.extend(utils.to_le_bytes(load_address))
         self.payload.extend(load_address.to_bytes(4, byteorder="little"))
-        # self.payload.extend(utils.to_le_bytes(write_file_crc))
         self.payload.extend(write_file_crc.to_bytes(4, byteorder="little"))
-        self.payload.extend(file_extension.encode())
-        logging.debug(f"extension {file_extension.encode().hex(" ")}")
-        # self.payload.extend(utils.to_le_bytes(timestamp))
+        self.payload.extend(struct.pack("3sx", file_extension.encode()))
         self.payload.extend(timestamp.to_bytes(4, byteorder="little"))
         self.payload.extend(
             bytes(
@@ -94,8 +83,7 @@ class InitFileTransferPacket(Cdc2CommandPacket):
                 ]
             )
         )
-        logging.debug(f"filename {filename.encode().hex(" ")}")
-        self.payload.extend(filename.encode())
+        self.payload.extend(struct.pack("23sx", filename.encode()))
 
 
 class LinkFilePacket(Cdc2CommandPacket):

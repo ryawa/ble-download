@@ -15,9 +15,9 @@ def main():
 
     commands.upload_file(
         connection,
-        "slot4",
+        "slot4.ini",
         "ini",
-        "[program]\ndescription = A test program.\nicon = USER029x.bmp\niconalt = \nslot = 4\nname = test\n[project]\nide = vexidebruh".encode(),
+        "[program]\ndescription = A test program.\nicon = USER029x.bmp\niconalt = \nslot = 4\nname = test\n[project]\nide = vexide".encode(),
         0x3800000,
         None,
         FileExitAction.DO_NOTHING,

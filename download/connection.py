@@ -4,6 +4,8 @@ import serial.tools.list_ports
 
 from . import packets, varint
 
+logger = logging.getLogger(__name__)
+
 
 class SerialConnection:
     VEX_USB_VID = 0x2888
@@ -30,7 +32,7 @@ class SerialConnection:
         packet = bytearray()
         header = self.system_port.read(2)
         if header != packets.HOST_BOUND_HEADER:
-            logging.warning("Invalid header")
+            logger.warning("Received packet with invalid header")
             return
         packet.extend(header)
         # Command ID
@@ -42,12 +44,13 @@ class SerialConnection:
         size = varint.to_int(size_bytes)
         packet.extend(size_bytes)
         packet.extend(self.system_port.read(size))
-        logging.debug(f"Received packet: {packet}")
+        logger.debug(f"Received packet: {packet.hex(" ")}")
         return packet
 
     def send_packet(self, packet):
         self.system_port.write(packet.encode())
         self.system_port.flush()
+        logger.debug(f"Sent packet: {packet.encode().hex(" ")}")
 
     # TODO: Receive packet needs poll?
     def packet_handshake(self, packet):
