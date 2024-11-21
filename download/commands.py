@@ -10,7 +10,18 @@ logger = logging.getLogger(__name__)
 COLD_START = 0x3800000
 
 
-def upload_program(connection, name, description, icon, program_type, slot, compress_program, data, is_monolith, after_upload):
+def upload_program(
+    connection,
+    name,
+    description,
+    icon,
+    program_type,
+    slot,
+    compress_program,
+    data,
+    is_monolith,
+    after_upload,
+):
     logger.info("Uploading program ini file")
     base_filename = f"slot_{slot}"
     ini_data = (
@@ -23,23 +34,41 @@ def upload_program(connection, name, description, icon, program_type, slot, comp
         f"\n"
         f"[project]\n"
         f"ide = {program_type}\n"
+    ).encode()
+    upload_file(
+        connection,
+        f"{base_filename}.ini",
+        "ini",
+        ini_data,
+        COLD_START,
+        None,
+        vex.FileExitAction.DO_NOTHING,
     )
-    upload_file(f"{base_filename}.ini", "ini", ini_data, COLD_START, None, vex.FileExitAction.DO_NOTHING)
     bin_name = f"{base_filename}.bin"
     lib_name = f"{base_filename}_lib.bin"
 
     if is_monolith:
         program_data = data
         library_data = None
-    
+
     # TODO: hot/cold library
 
     logger.info("Uploading program binary")
     # TODO: streaming gzip
     if compress_program:
         program_data = zlib.compress(program_data)
-    upload_file(bin_name, "bin", None, program_data, None, COLD_START, linked_file, after_upload)
+    if is_monolith:
+        linked_file = None
 
+    upload_file(
+        connection,
+        bin_name,
+        "bin",
+        program_data,
+        COLD_START,
+        linked_file,
+        after_upload,
+    )
 
 
 def upload_file(
