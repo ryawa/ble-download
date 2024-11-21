@@ -1,3 +1,4 @@
+import logging
 import struct
 
 from . import utils, varint
@@ -8,6 +9,8 @@ HOST_BOUND_HEADER = bytes([0xAA, 0x55])
 
 # TODO: use struct.pack
 # TODO: separate command/reply packets
+
+logger = logger = logging.getLogger(__name__)
 
 
 class Cdc2CommandPacket:
@@ -23,7 +26,7 @@ class Cdc2CommandPacket:
         payload_size = varint.to_bytes(len(self.payload))
         encoded.extend(payload_size)
         encoded.extend(self.payload)
-        encoded.extend(utils.to_be_bytes(self.crc.checksum(encoded)))
+        encoded.extend(self.crc.checksum(encoded).to_bytes(2, byteorder="big"))
         return encoded
 
 
@@ -67,12 +70,11 @@ class InitFileTransferPacket(Cdc2CommandPacket):
                 options,
             ]
         )
-        write_file_size += 1
         self.payload.extend(write_file_size.to_bytes(4, byteorder="little"))
         self.payload.extend(load_address.to_bytes(4, byteorder="little"))
         self.payload.extend(write_file_crc.to_bytes(4, byteorder="little"))
         self.payload.extend(struct.pack("3sx", file_extension.encode()))
-        self.payload.extend(timestamp.to_bytes(4, byteorder="little"))
+        self.payload.extend(timestamp.to_bytes(4, byteorder="little", signed=True))
         self.payload.extend(
             bytes(
                 [
@@ -104,7 +106,7 @@ class WriteFilePacket(Cdc2CommandPacket):
     def __init__(self, address, chunk_data):
         super().__init__()
         self.payload = bytearray()
-        self.payload.extend(utils.to_le_bytes(address))
+        self.payload.extend(address.to_bytes(4, byteorder="little", signed=True))
         self.payload.extend(chunk_data)
 
 

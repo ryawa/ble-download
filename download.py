@@ -1,8 +1,8 @@
 import logging
 
-from download import commands
+from download import commands, packets
 from download.connection import SerialConnection
-from download.vex import FileExitAction
+from download.vex import FileExitAction, RadioChannel
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -12,13 +12,14 @@ def main():
     if not hasattr(connection, "system_port"):
         logging.error("Connection failed")
         return
-    
+
     with open("basic.bin", "rb") as file:
         program_data = file.read()
 
+    connection.packet_handshake(packets.SetRadioChannelPacket(RadioChannel.PIT))
     commands.upload_program(
         connection,
-        "quick",
+        "squick",
         "A basic vexide program",
         "USER029x.bmp",
         "vexide",
@@ -26,7 +27,7 @@ def main():
         True,
         program_data,
         True,
-        FileExitAction.SHOW_RUN_SCREEN
+        FileExitAction.SHOW_RUN_SCREEN,
     )
 
 
