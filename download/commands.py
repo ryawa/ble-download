@@ -8,8 +8,11 @@ from . import packets, utils, vex
 logger = logging.getLogger(__name__)
 
 COLD_START = 0x3800000
+HOT_START = 0x7800000
+CHUNK_SIZE = 4096
 
 
+# TODO: streaming gzip
 def upload_program(
     connection,
     name,
@@ -18,8 +21,8 @@ def upload_program(
     program_type,
     slot,
     compress_program,
-    data,
-    is_monolith,
+    program_data,
+    library_data,
     after_upload,
 ):
     logger.info("Uploading program ini file")
@@ -47,18 +50,33 @@ def upload_program(
     bin_name = f"{base_filename}.bin"
     lib_name = f"{base_filename}_lib.bin"
 
-    if is_monolith:
-        program_data = data
-        library_data = None
+    is_monolith = library_data is None
 
-    # TODO: hot/cold library
+    if not is_monolith:
+        logger.info("Uploading cold library binary")
+        if compress_program:
+            library_data = zlib.compress(library_data)
+        upload_file(
+            connection,
+            lib_name,
+            "bin",
+            library_data,
+            HOT_START,
+            None,
+            # vex.FileExitAction.DO_NOTHING,
+            after_upload,
+        )
 
     logger.info("Uploading program binary")
-    # TODO: streaming gzip
     if compress_program:
         program_data = zlib.compress(program_data)
     if is_monolith:
         linked_file = None
+    else:
+        linked_file = {
+            "filename": lib_name,
+            "vendor": 0,
+        }
 
     upload_file(
         connection,
@@ -110,17 +128,19 @@ def upload_file(
     payload_size = varint.to_int(transfer_response[3:5])
     is_wide = varint.is_wide(int.from_bytes(transfer_response[3:4]))
     start_idx = 6 + is_wide
-    window_size = int.from_bytes(transfer_response[start_idx : start_idx + 2])
+    window_size = int.from_bytes(
+        transfer_response[start_idx : start_idx + 2], byteorder="little"
+    )
     logger.info(f"Window size: {window_size}")
     # TODO: bluetooth is a lot more complicated
-    max_chunk_size = min(window_size, 4096)
+    max_chunk_size = min(window_size, CHUNK_SIZE)
     offset = 0
     for i in range(0, len(data), max_chunk_size):
         chunk = data[i : i + max_chunk_size]
         if len(chunk) < max_chunk_size and len(chunk) % 4 != 0:
             chunk = bytearray(chunk)
             chunk.extend([0] * (4 - len(chunk) % 4))
-        logger.info(f"Sending chunk of size {len(chunk)}")
+        logger.debug(f"Sending chunk of size {len(chunk)}")
         connection.packet_handshake(packets.WriteFilePacket(load_addr + i, chunk))
         # TODO: ble don't wait
     connection.packet_handshake(packets.ExitFileTransferPacket(after_upload))

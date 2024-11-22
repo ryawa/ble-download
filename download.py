@@ -4,7 +4,7 @@ from download import commands, packets
 from download.connection import SerialConnection
 from download.vex import FileExitAction, RadioChannel
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 def main():
@@ -13,20 +13,22 @@ def main():
         logging.error("Connection failed")
         return
 
-    with open("basic.bin", "rb") as file:
-        program_data = file.read()
+    with open("bin/hot.package.bin", "rb") as hot_binary:
+        program_data = hot_binary.read()
+    with open("bin/cold.package.bin", "rb") as cold_binary:
+        library_data = cold_binary.read()
 
     connection.packet_handshake(packets.SetRadioChannelPacket(RadioChannel.PIT))
     commands.upload_program(
         connection,
-        "squick",
-        "A basic vexide program",
+        "hotcold",
+        "A basic program uploaded through ble-download",
         "USER029x.bmp",
-        "vexide",
+        "ble-download",
         4,
         True,
         program_data,
-        True,
+        library_data,
         FileExitAction.SHOW_RUN_SCREEN,
     )
 
