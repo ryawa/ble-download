@@ -2,7 +2,7 @@ import time
 
 from crc import Calculator, Configuration, Crc16
 
-VEX_CRC_16 = Calculator(Crc16.XMODEM)
+VEX_CRC_16 = Calculator(Crc16.XMODEM.value)
 VEX_CRC_32 = Calculator(
     Configuration(
         width=32,

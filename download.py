@@ -8,10 +8,11 @@ logging.basicConfig(level=logging.INFO)
 
 
 def main():
-    connection = SerialConnection()
-    if not hasattr(connection, "system_port"):
-        logging.error("Connection failed")
-        return
+    try:
+        connection = SerialConnection()
+    except Exception as e:
+        logging.error(f"Failed to connect to device: {e}")
+        raise
 
     with open("bin/hot.package.bin", "rb") as hot_binary:
         program_data = hot_binary.read()
@@ -21,11 +22,11 @@ def main():
     connection.packet_handshake(packets.SetRadioChannelPacket(RadioChannel.DOWNLOAD))
     commands.upload_program(
         connection,
+        3,
         "hotcold",
         "A basic program uploaded through ble-download",
-        "USER029x.bmp",
         "ble-download",
-        4,
+        "USER029x.bmp",
         True,
         program_data,
         library_data,

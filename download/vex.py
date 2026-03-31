@@ -6,46 +6,53 @@ class RadioChannel(IntEnum):
     DOWNLOAD = 0x01
 
 
-class FileInitAction(IntEnum):
-    WRITE = 1
-    READ = 2
+class FileTransferOperation(IntEnum):
+    WRITE = 0x01
+    READ = 0x02
 
 
-class FileDownloadTarget(IntEnum):
-    DDR = 0
-    QSPI = 1
-    CBUF = 2
-    VBUF = 3
-    DDRC = 4
-    DDRE = 5
-    FLASH = 6
-    RADIO = 7
-    A1 = 13
-    B1 = 14
-    B2 = 15
+class FileTransferTarget(IntEnum):
+    DDR = 0x00
+    QSPI = 0x01
+    CBUF = 0x02
+    VBUF = 0x03
+    DDRC = 0x04
+    DDRE = 0x05
+    FLASH = 0x06
+    RADIO = 0x07
+    A1 = 0x0D
+    B1 = 0x0E
+    B2 = 0x0F
 
 
 class FileVendor(IntEnum):
-    USER = 1
-    SYS = 15
-    DEV1 = 16
-    DEV2 = 24
-    DEV3 = 32
-    DEV4 = 40
-    DEV5 = 48
-    DEV6 = 56
-    VEX_VM = 64
-    VEX = 240
-    UNDEFINED = 241
+    USER = 0x01
+    SYS = 0x0F
+    DEV1 = 0x10
+    DEV2 = 0x18
+    DEV3 = 0x20
+    DEV4 = 0x28
+    DEV5 = 0x30
+    DEV6 = 0x38
+    VEX_VM = 0x40
+    VEX = 0xF0
+    UNDEFINED = 0xF1
 
 
-class FileInitOption(IntEnum):
-    NONE = 0
-    OVERWRITE = 1
+class FileTransferOptions(IntEnum):
+    NONE = 0x00
+    OVERWRITE = 0x01
 
 
 class FileExitAction(IntEnum):
-    DO_NOTHING = 0
-    RUN_PROGRAM = 1
-    HALT = 2
-    SHOW_RUN_SCREEN = 3
+    DO_NOTHING = 0x00
+    RUN_PROGRAM = 0x01
+    HALT = 0x02
+    SHOW_RUN_SCREEN = 0x03
+
+
+class FileExtensionType(IntEnum):
+    BINARY = 0x00
+    VM = 0x61
+    ENCRYPTED_BINARY = 0x73
+    ZIPPED = 0x7A

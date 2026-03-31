@@ -1,7 +1,10 @@
+from dataclasses import dataclass
 import logging
 import gzip
+from tqdm import tqdm
 
-from download import varint
+from . import varint
+from .connection import SerialConnection
 
 from . import packets, utils, vex
 
@@ -12,21 +15,28 @@ HOT_START = 0x7800000
 CHUNK_SIZE = 4096
 
 
-# TODO: streaming gzip
+@dataclass
+class LinkedFile:
+    file_name: str
+    vendor: vex.FileVendor
+
+
 def upload_program(
-    connection,
-    name,
-    description,
-    icon,
-    program_type,
-    slot,
-    compress_program,
-    program_data,
-    library_data,
-    after_upload,
+    connection: SerialConnection,
+    slot: int,
+    name: str,
+    description: str,
+    program_type: str,
+    icon: str,
+    compress: bool,
+    program_data: bytes,
+    library_data: bytes | None,
+    after_upload: vex.FileExitAction,
 ):
+    """Uploads a program to the device, including an ini file, the program binary, and optionally a library binary. If library_data is provided, the program will be linked to the library using a LinkFilePacket after the ini file is uploaded. If compress is True, the program and library data will be compressed using gzip before uploading."""
     logger.info("Uploading program ini file")
-    base_filename = f"slot_{slot}"
+    base_file_name = f"slot_{slot}"
+
     ini_data = (
         f"[project]\n"
         f"ide={program_type}\n"
@@ -39,28 +49,26 @@ def upload_program(
     ).encode()
     upload_file(
         connection,
-        f"{base_filename}.ini",
+        f"{base_file_name}.ini",
         "ini",
         ini_data,
         COLD_START,
         None,
         vex.FileExitAction.DO_NOTHING,
     )
-    bin_name = f"{base_filename}.bin"
-    lib_name = f"{base_filename}_lib.bin"
 
-    is_monolith = library_data is None
-
-    if not is_monolith:
+    if library_data is not None:
         logger.info("Uploading cold library binary")
-        if compress_program:
+        if compress:
+            logger.info("Compressing library binary")
             library_data = gzip.compress(library_data)
-        crc = utils.VEX_CRC_32.checksum(library_data)
+            logger.info(f"Compressed library size: {len(library_data)} bytes")
         # Get file metadata
-        # If size and crc match, don't upload
+        # If file is less recent than cold.package.bin, reupload because it is out of date
+        # Also check name of file
         upload_file(
             connection,
-            lib_name,
+            f"{base_file_name}_lib.bin",
             "bin",
             library_data,
             COLD_START,
@@ -69,19 +77,17 @@ def upload_program(
         )
 
     logger.info("Uploading program binary")
-    if compress_program:
+    if compress:
+        logger.info("Compressing program binary")
         program_data = gzip.compress(program_data)
-    if is_monolith:
-        linked_file = None
-    else:
-        linked_file = {
-            "filename": lib_name,
-            "vendor": vex.FileVendor.USER,
-        }
+
+    linked_file = None
+    if library_data is not None:
+        linked_file = LinkedFile(f"{base_file_name}_lib.bin", vex.FileVendor.USER)
 
     upload_file(
         connection,
-        bin_name,
+        f"{base_file_name}.bin",
         "bin",
         program_data,
         HOT_START,
@@ -91,52 +97,55 @@ def upload_program(
 
 
 def upload_file(
-    connection,
-    filename,
-    filetype,
-    data,
-    load_addr,
-    linked_file,
-    after_upload,
-    vendor=vex.FileVendor.USER,
-    target=vex.FileDownloadTarget.QSPI,
+    connection: SerialConnection,
+    file_name: str,
+    file_type: str,
+    data: bytes,
+    load_addr: int,
+    linked_file: LinkedFile | None,
+    after_upload: vex.FileExitAction,
+    vendor: vex.FileVendor = vex.FileVendor.USER,
+    target: vex.FileTransferTarget = vex.FileTransferTarget.QSPI,
 ):
+    """Uploads a file to the device using the file transfer protocol. If linked_file is provided, the file will be linked to the specified file after the ini file is uploaded. The after_upload parameter specifies what action to take after the upload is complete."""
     crc = utils.VEX_CRC_32.checksum(data)
     transfer_response = connection.packet_handshake(
         packets.InitFileTransferPacket(
-            vex.FileInitAction.WRITE,
+            vex.FileTransferOperation.WRITE,
             target,
             vendor,
-            vex.FileInitOption.OVERWRITE,
+            vex.FileTransferOptions.OVERWRITE,
             len(data),
             load_addr,
             crc,
-            filetype,
-            utils.j2000_timestamp(),
-            {
-                "major": 1,
-                "minor": 0,
-                "build": 0,
-                "beta": 0,
-            },
-            filename,
+            packets.FileMetadata(
+                file_type,
+                vex.FileExtensionType.BINARY,
+                utils.j2000_timestamp(),
+                {
+                    "major": 1,
+                    "minor": 0,
+                    "build": 0,
+                    "beta": 0,
+                },
+            ),
+            file_name,
         )
     )
     if linked_file is not None:
         connection.packet_handshake(
-            packets.LinkFilePacket(linked_file["vendor"], 0, linked_file["filename"])
+            packets.LinkFilePacket(linked_file.vendor, 0, linked_file.file_name)
         )
-    payload_size = varint.to_int(transfer_response[3:5])
+
     is_wide = varint.is_wide(int.from_bytes(transfer_response[3:4]))
     start_idx = 6 + is_wide
     window_size = int.from_bytes(
         transfer_response[start_idx : start_idx + 2], byteorder="little"
     )
-    logger.info(f"Window size: {window_size}")
+
     # TODO: bluetooth is a lot more complicated
     max_chunk_size = min(window_size, CHUNK_SIZE)
-    offset = 0
-    for i in range(0, len(data), max_chunk_size):
+    for i in tqdm(range(0, len(data), max_chunk_size)):
         chunk = data[i : i + max_chunk_size]
         if len(chunk) < max_chunk_size and len(chunk) % 4 != 0:
             chunk = bytearray(chunk)
@@ -144,5 +153,7 @@ def upload_file(
         logger.debug(f"Sending chunk of size {len(chunk)}")
         connection.packet_handshake(packets.WriteFilePacket(load_addr + i, chunk))
         # TODO: ble don't wait
+
+    logger.info("Finalizing file transfer")
     connection.packet_handshake(packets.ExitFileTransferPacket(after_upload))
-    logger.info(f"Successfully uploaded file {filename}")
+    logger.info(f"Successfully uploaded file {file_name}")

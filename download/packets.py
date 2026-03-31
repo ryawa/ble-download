@@ -1,19 +1,18 @@
-import logging
+from collections.abc import Mapping
+from dataclasses import dataclass
 import struct
 
-from . import utils, varint
+from . import utils, varint, vex
 
 DEVICE_BOUND_HEADER = bytes([0xC9, 0x36, 0xB8, 0x47])
 HOST_BOUND_HEADER = bytes([0xAA, 0x55])
 
 
-# TODO: use struct.pack
-# TODO: separate command/reply packets
-
-logger = logger = logging.getLogger(__name__)
-
-
 class Cdc2CommandPacket:
+    ID = 0x56
+    EXT_ID: int
+    payload: bytearray
+
     def __init__(self):
         self.header = DEVICE_BOUND_HEADER
         self.crc = utils.VEX_CRC_16
@@ -31,10 +30,9 @@ class Cdc2CommandPacket:
 
 
 class SetRadioChannelPacket(Cdc2CommandPacket):
-    ID = 86
-    EXT_ID = 16
+    EXT_ID = 0x10
 
-    def __init__(self, channel):
+    def __init__(self, channel: vex.RadioChannel):
         super().__init__()
         self.payload = bytearray()
         # Radio file control group
@@ -42,23 +40,28 @@ class SetRadioChannelPacket(Cdc2CommandPacket):
         self.payload.extend(bytes([channel]))
 
 
+@dataclass
+class FileMetadata:
+    extension: str
+    extension_type: vex.FileExtensionType
+    timestamp: int
+    version: Mapping[str, int]
+
+
 class InitFileTransferPacket(Cdc2CommandPacket):
-    ID = 86
-    EXT_ID = 17
+    EXT_ID = 0x11
 
     def __init__(
         self,
-        operation,
-        target,
-        vendor,
-        options,
-        write_file_size,
-        load_address,
-        write_file_crc,
-        file_extension,
-        timestamp,
-        version,
-        filename,
+        operation: vex.FileTransferOperation,
+        target: vex.FileTransferTarget,
+        vendor: vex.FileVendor,
+        options: vex.FileTransferOptions,
+        write_file_size: int,
+        load_address: int,
+        write_file_crc: int,
+        metadata: FileMetadata,
+        file_name: str,
     ):
         super().__init__()
         self.payload = bytearray()
@@ -73,37 +76,38 @@ class InitFileTransferPacket(Cdc2CommandPacket):
         self.payload.extend(write_file_size.to_bytes(4, byteorder="little"))
         self.payload.extend(load_address.to_bytes(4, byteorder="little"))
         self.payload.extend(write_file_crc.to_bytes(4, byteorder="little"))
-        self.payload.extend(struct.pack("3sx", file_extension.encode()))
-        self.payload.extend(timestamp.to_bytes(4, byteorder="little", signed=True))
+        self.payload.extend(struct.pack("3s", metadata.extension.encode()))
+        self.payload.extend([metadata.extension_type])
+        self.payload.extend(
+            metadata.timestamp.to_bytes(4, byteorder="little", signed=True)
+        )
         self.payload.extend(
             bytes(
                 [
-                    version["major"],
-                    version["minor"],
-                    version["build"],
-                    version["beta"],
+                    metadata.version["major"],
+                    metadata.version["minor"],
+                    metadata.version["build"],
+                    metadata.version["beta"],
                 ]
             )
         )
-        self.payload.extend(struct.pack("23sx", filename.encode()))
+        self.payload.extend(struct.pack("23sx", file_name.encode()))
 
 
 class LinkFilePacket(Cdc2CommandPacket):
-    ID = 86
-    EXT_ID = 21
+    EXT_ID = 0x15
 
-    def __init__(self, vendor, option, required_file):
+    def __init__(self, vendor: vex.FileVendor, reserved: int, required_file: str):
         super().__init__()
         self.payload = bytearray()
-        self.payload.extend([vendor, option])
+        self.payload.extend([vendor, reserved])
         self.payload.extend(struct.pack("23sx", required_file.encode()))
 
 
 class WriteFilePacket(Cdc2CommandPacket):
-    ID = 86
-    EXT_ID = 19
+    EXT_ID = 0x13
 
-    def __init__(self, address, chunk_data):
+    def __init__(self, address: int, chunk_data: bytes):
         super().__init__()
         self.payload = bytearray()
         self.payload.extend(address.to_bytes(4, byteorder="little", signed=True))
@@ -111,9 +115,8 @@ class WriteFilePacket(Cdc2CommandPacket):
 
 
 class ExitFileTransferPacket(Cdc2CommandPacket):
-    ID = 86
-    EXT_ID = 18
+    EXT_ID = 0x12
 
-    def __init__(self, after_upload):
+    def __init__(self, after_upload: vex.FileExitAction):
         super().__init__()
         self.payload = bytearray([after_upload])
