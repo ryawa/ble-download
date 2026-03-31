@@ -21,6 +21,9 @@ class LinkedFile:
     vendor: vex.FileVendor
 
 
+# Rewrite window_size with receive_payload
+
+
 def upload_program(
     connection: SerialConnection,
     *,
@@ -32,10 +35,10 @@ def upload_program(
     compress: bool,
     program_data: bytes,
     library_data: bytes | None,
+    project_hash: str | None,
     after_upload: vex.FileExitAction,
 ):
     """Uploads a program to the device, including an ini file, the program binary, and optionally a library binary. If library_data is provided, the program will be linked to the library using a LinkFilePacket after the ini file is uploaded. If compress is True, the program and library data will be compressed using gzip before uploading."""
-    logger.info("Uploading program ini file")
     base_file_name = f"slot_{slot}"
 
     ini_data = (
@@ -46,8 +49,9 @@ def upload_program(
         f"slot={slot-1}\n"
         f"icon={icon}\n"
         f"iconalt=\n"
-        f"description={description}"
+        f"description={description}\n"
     ).encode()
+    logger.info(f"Uploading {base_file_name}.ini")
     upload_file(
         connection,
         file_name=f"{base_file_name}.ini",
@@ -58,34 +62,27 @@ def upload_program(
         after_upload=vex.FileExitAction.DO_NOTHING,
     )
 
+    linked_file = None
     if library_data is not None:
-        logger.info("Uploading cold library binary")
-        if compress:
-            logger.info("Compressing library binary")
-            library_data = gzip.compress(library_data)
-            logger.info(f"Compressed library size: {len(library_data)} bytes")
-        # Get file metadata
-        # If file is less recent than cold.package.bin, reupload because it is out of date
-        # Also check name of file
-        upload_file(
+        library_name = (
+            f"{project_hash}.bin"
+            if project_hash is not None
+            else f"{base_file_name}_lib.bin"
+        )
+        linked_file = LinkedFile(library_name, vex.FileVendor.USER)
+        upload_library(
             connection,
-            file_name=f"{base_file_name}_lib.bin",
-            file_type="bin",
-            data=library_data,
-            load_addr=COLD_START,
-            linked_file=None,
-            after_upload=vex.FileExitAction.DO_NOTHING,
+            library_name,
+            library_data,
+            compress,
+            project_hash,
         )
 
-    logger.info("Uploading program binary")
     if compress:
         logger.info("Compressing program binary")
         program_data = gzip.compress(program_data)
 
-    linked_file = None
-    if library_data is not None:
-        linked_file = LinkedFile(f"{base_file_name}_lib.bin", vex.FileVendor.USER)
-
+    logger.info(f"Uploading program binary {base_file_name}.bin")
     upload_file(
         connection,
         file_name=f"{base_file_name}.bin",
@@ -94,6 +91,45 @@ def upload_program(
         load_addr=HOT_START,
         linked_file=linked_file,
         after_upload=after_upload,
+    )
+
+
+def upload_library(
+    connection: SerialConnection,
+    library_name: str,
+    library_data: bytes,
+    compress: bool,
+    project_hash: str | None,
+):
+    if project_hash is not None:
+        # Check if library name matches project hash
+        metadata = packets.FileMetadataResponsePacket.from_payload(
+            connection.packet_handshake(
+                packets.GetFileMetadataPacket(
+                    vendor=vex.FileVendor.USER,
+                    reserved=0,
+                    file_name=library_name,
+                )
+            )
+        )
+        if metadata is not None:
+            logger.info("Library file found on device, skipping upload")
+            return
+
+    if compress:
+        logger.info("Compressing library binary")
+        library_data = gzip.compress(library_data)
+        logger.info(f"Compressed library size: {len(library_data)} bytes")
+
+    logger.info(f"Uploading cold library binary {library_name}")
+    upload_file(
+        connection,
+        file_name=library_name,
+        file_type="bin",
+        data=library_data,
+        load_addr=COLD_START,
+        linked_file=None,
+        after_upload=vex.FileExitAction.DO_NOTHING,
     )
 
 

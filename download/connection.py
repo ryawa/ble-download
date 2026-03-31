@@ -3,6 +3,7 @@ import logging
 import serial.tools.list_ports
 
 from . import packets, varint
+from .packets import Cdc2CommandPacket
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +58,23 @@ class SerialConnection:
         logger.debug(f"Received packet: {packet.hex(" ")}")
         return packet
 
-    def send_packet(self, packet: packets.Cdc2CommandPacket) -> None:
+    def receive_payload(self) -> bytes:
+        """Read a packet from the system port and return the payload bytes"""
+        packet = self.receive_packet()
+        size_bytes = packet[3:4]
+        if varint.is_wide(size_bytes[0]):
+            payload_start = 7
+        else:
+            payload_start = 6
+        return packet[payload_start:-2]
+
+    def send_packet(self, packet: Cdc2CommandPacket) -> None:
         """Send a packet to the system port"""
         self.system_port.write(packet.encode())
         self.system_port.flush()
         logger.debug(f"Sent packet: {packet.encode().hex(" ")}")
 
-    def packet_handshake(self, packet: packets.Cdc2CommandPacket) -> bytes:
-        """Send a packet and wait for a response"""
+    def packet_handshake(self, packet: Cdc2CommandPacket) -> bytes:
+        """Send a packet and get the response payload"""
         self.send_packet(packet)
-        return self.receive_packet()
+        return self.receive_payload()

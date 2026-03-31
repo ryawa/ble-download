@@ -1,6 +1,6 @@
 import logging
 
-from download import commands, packets
+from download import commands, packets, utils
 from download.connection import SerialConnection
 from download.vex import FileExitAction, RadioChannel
 
@@ -18,13 +18,14 @@ def main():
         program_data = hot_binary.read()
     with open("bin/cold.package.bin", "rb") as cold_binary:
         library_data = cold_binary.read()
+    project_hash = utils.project_hash("project.pros")
 
     connection.packet_handshake(
         packets.SetRadioChannelPacket(channel=RadioChannel.DOWNLOAD)
     )
     commands.upload_program(
         connection,
-        slot=3,
+        slot=2,
         name="hotcold",
         description="A basic program uploaded through ble-download",
         program_type="ble-download",
@@ -32,6 +33,7 @@ def main():
         compress=True,
         program_data=program_data,
         library_data=library_data,
+        project_hash=project_hash,
         after_upload=FileExitAction.SHOW_RUN_SCREEN,
     )
 
