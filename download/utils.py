@@ -15,5 +15,7 @@ VEX_CRC_32 = Calculator(
 )
 
 
-def j2000_timestamp():
-    return int(time.time()) - 946684800
+def j2000_timestamp(timestamp: int | None = None) -> int:
+    if timestamp is None:
+        timestamp = int(time.time())
+    return timestamp - 946684800

@@ -19,18 +19,20 @@ def main():
     with open("bin/cold.package.bin", "rb") as cold_binary:
         library_data = cold_binary.read()
 
-    connection.packet_handshake(packets.SetRadioChannelPacket(RadioChannel.DOWNLOAD))
+    connection.packet_handshake(
+        packets.SetRadioChannelPacket(channel=RadioChannel.DOWNLOAD)
+    )
     commands.upload_program(
         connection,
-        3,
-        "hotcold",
-        "A basic program uploaded through ble-download",
-        "ble-download",
-        "USER029x.bmp",
-        True,
-        program_data,
-        library_data,
-        FileExitAction.SHOW_RUN_SCREEN,
+        slot=3,
+        name="hotcold",
+        description="A basic program uploaded through ble-download",
+        program_type="ble-download",
+        icon="USER029x.bmp",
+        compress=True,
+        program_data=program_data,
+        library_data=library_data,
+        after_upload=FileExitAction.SHOW_RUN_SCREEN,
     )
 
 

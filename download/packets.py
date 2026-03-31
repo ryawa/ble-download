@@ -29,10 +29,14 @@ class Cdc2CommandPacket:
         return encoded
 
 
+class Cdc2ResponsePacket:
+    pass
+
+
 class SetRadioChannelPacket(Cdc2CommandPacket):
     EXT_ID = 0x10
 
-    def __init__(self, channel: vex.RadioChannel):
+    def __init__(self, *, channel: vex.RadioChannel):
         super().__init__()
         self.payload = bytearray()
         # Radio file control group
@@ -53,6 +57,7 @@ class InitFileTransferPacket(Cdc2CommandPacket):
 
     def __init__(
         self,
+        *,
         operation: vex.FileTransferOperation,
         target: vex.FileTransferTarget,
         vendor: vex.FileVendor,
@@ -97,7 +102,7 @@ class InitFileTransferPacket(Cdc2CommandPacket):
 class LinkFilePacket(Cdc2CommandPacket):
     EXT_ID = 0x15
 
-    def __init__(self, vendor: vex.FileVendor, reserved: int, required_file: str):
+    def __init__(self, *, vendor: vex.FileVendor, reserved: int, required_file: str):
         super().__init__()
         self.payload = bytearray()
         self.payload.extend([vendor, reserved])
@@ -107,7 +112,7 @@ class LinkFilePacket(Cdc2CommandPacket):
 class WriteFilePacket(Cdc2CommandPacket):
     EXT_ID = 0x13
 
-    def __init__(self, address: int, chunk_data: bytes):
+    def __init__(self, *, address: int, chunk_data: bytes):
         super().__init__()
         self.payload = bytearray()
         self.payload.extend(address.to_bytes(4, byteorder="little", signed=True))
@@ -117,6 +122,6 @@ class WriteFilePacket(Cdc2CommandPacket):
 class ExitFileTransferPacket(Cdc2CommandPacket):
     EXT_ID = 0x12
 
-    def __init__(self, after_upload: vex.FileExitAction):
+    def __init__(self, *, after_upload: vex.FileExitAction):
         super().__init__()
         self.payload = bytearray([after_upload])

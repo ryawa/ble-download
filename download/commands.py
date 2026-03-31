@@ -23,6 +23,7 @@ class LinkedFile:
 
 def upload_program(
     connection: SerialConnection,
+    *,
     slot: int,
     name: str,
     description: str,
@@ -49,12 +50,12 @@ def upload_program(
     ).encode()
     upload_file(
         connection,
-        f"{base_file_name}.ini",
-        "ini",
-        ini_data,
-        COLD_START,
-        None,
-        vex.FileExitAction.DO_NOTHING,
+        file_name=f"{base_file_name}.ini",
+        file_type="ini",
+        data=ini_data,
+        load_addr=COLD_START,
+        linked_file=None,
+        after_upload=vex.FileExitAction.DO_NOTHING,
     )
 
     if library_data is not None:
@@ -68,12 +69,12 @@ def upload_program(
         # Also check name of file
         upload_file(
             connection,
-            f"{base_file_name}_lib.bin",
-            "bin",
-            library_data,
-            COLD_START,
-            None,
-            vex.FileExitAction.DO_NOTHING,
+            file_name=f"{base_file_name}_lib.bin",
+            file_type="bin",
+            data=library_data,
+            load_addr=COLD_START,
+            linked_file=None,
+            after_upload=vex.FileExitAction.DO_NOTHING,
         )
 
     logger.info("Uploading program binary")
@@ -87,17 +88,18 @@ def upload_program(
 
     upload_file(
         connection,
-        f"{base_file_name}.bin",
-        "bin",
-        program_data,
-        HOT_START,
-        linked_file,
-        after_upload,
+        file_name=f"{base_file_name}.bin",
+        file_type="bin",
+        data=program_data,
+        load_addr=HOT_START,
+        linked_file=linked_file,
+        after_upload=after_upload,
     )
 
 
 def upload_file(
     connection: SerialConnection,
+    *,
     file_name: str,
     file_type: str,
     data: bytes,
@@ -111,30 +113,34 @@ def upload_file(
     crc = utils.VEX_CRC_32.checksum(data)
     transfer_response = connection.packet_handshake(
         packets.InitFileTransferPacket(
-            vex.FileTransferOperation.WRITE,
-            target,
-            vendor,
-            vex.FileTransferOptions.OVERWRITE,
-            len(data),
-            load_addr,
-            crc,
-            packets.FileMetadata(
-                file_type,
-                vex.FileExtensionType.BINARY,
-                utils.j2000_timestamp(),
-                {
+            operation=vex.FileTransferOperation.WRITE,
+            target=target,
+            vendor=vendor,
+            options=vex.FileTransferOptions.OVERWRITE,
+            write_file_size=len(data),
+            load_address=load_addr,
+            write_file_crc=crc,
+            metadata=packets.FileMetadata(
+                extension=file_type,
+                extension_type=vex.FileExtensionType.BINARY,
+                timestamp=utils.j2000_timestamp(),
+                version={
                     "major": 1,
                     "minor": 0,
                     "build": 0,
                     "beta": 0,
                 },
             ),
-            file_name,
+            file_name=file_name,
         )
     )
     if linked_file is not None:
         connection.packet_handshake(
-            packets.LinkFilePacket(linked_file.vendor, 0, linked_file.file_name)
+            packets.LinkFilePacket(
+                vendor=linked_file.vendor,
+                reserved=0,
+                required_file=linked_file.file_name,
+            )
         )
 
     is_wide = varint.is_wide(int.from_bytes(transfer_response[3:4]))
@@ -151,9 +157,13 @@ def upload_file(
             chunk = bytearray(chunk)
             chunk.extend([0] * (4 - len(chunk) % 4))
         logger.debug(f"Sending chunk of size {len(chunk)}")
-        connection.packet_handshake(packets.WriteFilePacket(load_addr + i, chunk))
+        connection.packet_handshake(
+            packets.WriteFilePacket(address=load_addr + i, chunk_data=chunk)
+        )
         # TODO: ble don't wait
 
     logger.info("Finalizing file transfer")
-    connection.packet_handshake(packets.ExitFileTransferPacket(after_upload))
+    connection.packet_handshake(
+        packets.ExitFileTransferPacket(after_upload=after_upload)
+    )
     logger.info(f"Successfully uploaded file {file_name}")
