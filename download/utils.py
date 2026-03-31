@@ -15,13 +15,5 @@ VEX_CRC_32 = Calculator(
 )
 
 
-def to_be_bytes(x):
-    return x.to_bytes((x.bit_length() + 7) // 8, byteorder="big")
-
-
-def to_le_bytes(x):
-    return x.to_bytes((x.bit_length() + 7) // 8, byteorder="little")
-
-
 def j2000_timestamp():
     return int(time.time()) - 946684800

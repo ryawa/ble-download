@@ -18,12 +18,12 @@ class SerialConnection:
             if port.vid != self.VEX_USB_VID:
                 continue
             if port.pid == self.V5_BRAIN_USB_PID:
-                match port.location[-1]:
-                    case "0":
+                match port.device[-1]:
+                    case "1":
                         self.system_port = serial.Serial(
                             port.device, self.V5_SERIAL_BAUDRATE
                         )
-                    case "2":
+                    case "3":
                         self.user_port = serial.Serial(
                             port.device, self.V5_SERIAL_BAUDRATE
                         )

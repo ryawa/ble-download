@@ -96,7 +96,7 @@ class LinkFilePacket(Cdc2CommandPacket):
         super().__init__()
         self.payload = bytearray()
         self.payload.extend([vendor, option])
-        self.payload.extend(required_file.encode())
+        self.payload.extend(struct.pack("23sx", required_file.encode()))
 
 
 class WriteFilePacket(Cdc2CommandPacket):

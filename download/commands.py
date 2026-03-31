@@ -1,5 +1,5 @@
 import logging
-import zlib
+import gzip
 
 from download import varint
 
@@ -28,15 +28,14 @@ def upload_program(
     logger.info("Uploading program ini file")
     base_filename = f"slot_{slot}"
     ini_data = (
-        f"[program]\n"
-        f"description = {description}\n"
-        f"icon = {icon}\n"
-        f"iconalt = \n"
-        f"slot = {slot}\n"
-        f"name = {name}\n"
-        f"\n"
         f"[project]\n"
-        f"ide = {program_type}\n"
+        f"ide={program_type}\n"
+        f"[program]\n"
+        f"name={name}\n"
+        f"slot={slot-1}\n"
+        f"icon={icon}\n"
+        f"iconalt=\n"
+        f"description={description}"
     ).encode()
     upload_file(
         connection,
@@ -55,27 +54,29 @@ def upload_program(
     if not is_monolith:
         logger.info("Uploading cold library binary")
         if compress_program:
-            library_data = zlib.compress(library_data)
+            library_data = gzip.compress(library_data)
+        crc = utils.VEX_CRC_32.checksum(library_data)
+        # Get file metadata
+        # If size and crc match, don't upload
         upload_file(
             connection,
             lib_name,
             "bin",
             library_data,
-            HOT_START,
+            COLD_START,
             None,
-            # vex.FileExitAction.DO_NOTHING,
-            after_upload,
+            vex.FileExitAction.DO_NOTHING,
         )
 
     logger.info("Uploading program binary")
     if compress_program:
-        program_data = zlib.compress(program_data)
+        program_data = gzip.compress(program_data)
     if is_monolith:
         linked_file = None
     else:
         linked_file = {
             "filename": lib_name,
-            "vendor": 0,
+            "vendor": vex.FileVendor.USER,
         }
 
     upload_file(
@@ -83,7 +84,7 @@ def upload_program(
         bin_name,
         "bin",
         program_data,
-        COLD_START,
+        HOT_START,
         linked_file,
         after_upload,
     )

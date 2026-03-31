@@ -18,7 +18,7 @@ def main():
     with open("bin/cold.package.bin", "rb") as cold_binary:
         library_data = cold_binary.read()
 
-    connection.packet_handshake(packets.SetRadioChannelPacket(RadioChannel.PIT))
+    connection.packet_handshake(packets.SetRadioChannelPacket(RadioChannel.DOWNLOAD))
     commands.upload_program(
         connection,
         "hotcold",
